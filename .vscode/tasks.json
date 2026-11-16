@@ -4,7 +4,7 @@
     {
       "label": "Buka lirik di browser",
       "type": "shell",
-      "command": "xdg-open index.html",
+      "command": "google-chrome --app=\"file://${workspaceFolder}/index.html\" --window-size=500,900 --autoplay-policy=no-user-gesture-required 2>/dev/null || xdg-open index.html",
       "group": { "kind": "build", "isDefault": true },
       "problemMatcher": []
     }

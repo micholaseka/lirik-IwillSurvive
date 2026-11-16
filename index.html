@@ -40,26 +40,101 @@
         display: flex;
         align-items: center;
         justify-content: center;
+        background: radial-gradient(circle at 50% 50%, #171720 0%, #08080a 100%);
         cursor: pointer;
         overflow: hidden;
       }
+      #window {
+        width: min(92vw, 760px);
+        height: min(84vh, 880px);
+        background: #111115;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 12px;
+        box-shadow:
+          0 24px 60px rgba(0, 0, 0, 0.7),
+          0 0 1px rgba(255, 255, 255, 0.2),
+          0 0 40px rgba(197, 134, 192, 0.08);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        transform-origin: center center;
+        animation: windowPop 0.85s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      }
+      @keyframes windowPop {
+        0% {
+          transform: scale(0.25);
+          opacity: 0;
+          filter: blur(10px);
+        }
+        70% {
+          transform: scale(1.02);
+          opacity: 1;
+          filter: blur(0px);
+        }
+        100% {
+          transform: scale(1);
+          opacity: 1;
+          filter: blur(0px);
+        }
+      }
+      #titlebar {
+        height: 38px;
+        background: #18181f;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        display: flex;
+        align-items: center;
+        padding: 0 14px;
+        position: relative;
+        user-select: none;
+        flex-shrink: 0;
+      }
+      .dots {
+        display: flex;
+        gap: 7px;
+        align-items: center;
+      }
+      .dot {
+        width: 11px;
+        height: 11px;
+        border-radius: 50%;
+        display: inline-block;
+      }
+      .dot.red {
+        background: #ff5f56;
+      }
+      .dot.yellow {
+        background: #ffbd2e;
+      }
+      .dot.green {
+        background: #27c93f;
+      }
+      .title {
+        position: absolute;
+        left: 0;
+        right: 0;
+        text-align: center;
+        font-size: 12px;
+        color: #888899;
+        letter-spacing: 0.02em;
+        pointer-events: none;
+      }
       #viewport {
-        width: min(88vw, 860px);
-        height: 70vh;
+        flex: 1;
         position: relative;
         overflow: hidden;
+        padding: 0 24px;
         mask-image: linear-gradient(
           to bottom,
           transparent 0%,
-          black 18%,
-          black 82%,
+          black 15%,
+          black 85%,
           transparent 100%
         );
         -webkit-mask-image: linear-gradient(
           to bottom,
           transparent 0%,
-          black 18%,
-          black 82%,
+          black 15%,
+          black 85%,
           transparent 100%
         );
         pointer-events: none;
@@ -67,8 +142,8 @@
       #stage {
         position: absolute;
         top: 0;
-        left: 0;
-        width: 100%;
+        left: 24px;
+        right: 24px;
         display: flex;
         flex-direction: column;
         align-items: flex-start;
@@ -196,8 +271,18 @@
   </head>
   <body>
     <div id="scene">
-      <div id="viewport">
-        <div id="stage"></div>
+      <div id="window">
+        <div id="titlebar">
+          <div class="dots">
+            <span class="dot red"></span>
+            <span class="dot yellow"></span>
+            <span class="dot green"></span>
+          </div>
+          <div class="title">survive.js — Demi Lovato</div>
+        </div>
+        <div id="viewport">
+          <div id="stage"></div>
+        </div>
       </div>
     </div>
 
@@ -440,11 +525,19 @@
         // Scroll kamera stage agar baris aktif tepat berada di tengah
         if (active >= 0 && LINES[active] && LINES[active].el) {
           if (active !== lastActive) {
+            const isFirst = lastActive === -999;
             lastActive = active;
             const targetEl = LINES[active].el;
             const targetOffset = targetEl.offsetTop + targetEl.offsetHeight / 2;
             const vhCenter = viewport.clientHeight / 2;
-            stage.style.transform = `translateY(${vhCenter - targetOffset}px)`;
+            if (isFirst) {
+              stage.style.transition = 'none';
+              stage.style.transform = `translateY(${vhCenter - targetOffset}px)`;
+              void stage.offsetHeight;
+              stage.style.transition = '';
+            } else {
+              stage.style.transform = `translateY(${vhCenter - targetOffset}px)`;
+            }
           }
         } else {
           stage.style.transform = "translateY(0)";
@@ -467,7 +560,10 @@
         usingAudio = !audio.error;
         if (usingAudio) {
           audio.currentTime = 0;
-          audio.play().catch(fallback);
+          audio.play().catch(() => {
+            playing = false;
+            setPlayLabel();
+          });
         } else {
           frozen = 0;
           playStart = performance.now();
@@ -511,6 +607,12 @@
         frozen = 0;
         playing = false;
         lastActive = -999;
+        const win = document.getElementById("window");
+        if (win) {
+          win.style.animation = "none";
+          void win.offsetHeight;
+          win.style.animation = "";
+        }
         cancelAnimationFrame(raf);
         render(0);
         setPlayLabel();
@@ -588,6 +690,11 @@
       render(0);
       showOffset();
       setPlayLabel();
+
+      // Auto start setelah animasi pop-in jendela selesai
+      setTimeout(() => {
+        start();
+      }, 550);
     </script>
   </body>
 </html>

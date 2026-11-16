@@ -153,10 +153,10 @@ function parse(src) {
     used.add(v);
     l.name = v;
 
-    // ngetik mengikuti laju vokal: mulai 0.15s sebelum vokal, selesai sebelum baris berikut
+    // ngetik mengikuti laju vokal, tapi mulai ~1s lebih awal biar tidak terasa telat
     const gap = (out[i + 1] ? out[i + 1].at : l.at + 4) - l.at;
-    l.dur = Math.min(5, Math.max(0.9, gap * 0.85));
-    l.start = l.at - 0.15;
+    l.dur = Math.min(5, Math.max(0.9, gap * 0.8));
+    l.start = l.at - Math.min(1.2, l.dur * 0.45);
 
     // bobot acak per karakter; vokal panjang (aaa/ooo) diketik lebih lambat biar ikut nada
     const th = [];

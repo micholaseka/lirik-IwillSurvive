@@ -87,17 +87,17 @@
 
 <script>
 // Waktu = lirik Demi Lovato "I Will Survive"; klip 60s mulai di detik 30.34 lagu.
-const DEFAULT = `6.25|Go on now, go, walk out the door
-10.37|Just turn around now, 'cause you're not welcome anymore
-14.84|Weren't you the one who tried to hurt me with goodbye?
+const DEFAULT = `6.25|Go on now, go, walk out the dooooor
+10.37|Just turn around now, 'cause you're not welcome anymoooore
+14.84|Weren't you the one who tried to hurt me with goodbyeee?
 18.04|Did you think I'd crumble?
-20.04|Do you think I'd lay down and die?
-22.13|Oh no, not I, I will survive
-26.00|Oh, as long as I know how to love, I know I'll stay alive
-30.00|I've got all my life to live, and I've got all my love to give
-33.80|I will survive, I will survive, hey, hey
-53.70|It took all the strength I had not to fall apart
-57.35|Kept trying hard to mend the pieces of my broken heart`;
+20.04|Do you think I'd lay down and diiiie?
+22.13|Oh no, not I, I will surviiiiive
+26.00|Oh, as long as I know how to love, I know I'll stay aliiiiive
+30.00|I've got all my life to live, and I've got all my love to giiiiive
+33.80|I will surviiiiive, I will surviiiiive, hey, hey
+53.70|It took all the strength I had not to fall apaaaart
+57.35|Kept trying hard to mend the pieces of my broken heaaaart`;
 
 const scene = document.getElementById('scene');
 const curEl = document.getElementById('cur');
@@ -125,7 +125,7 @@ function noise(n) { const x = Math.sin(n * 12.9898) * 43758.5453; return x - Mat
 
 // "Go on now, go..." -> "goOnNow"
 function varName(text) {
-  const words = text.toLowerCase().replace(/[^a-z0-9' ]/g, '').replace(/'/g, '').split(/\s+/).filter(Boolean);
+  const words = text.toLowerCase().replace(/([a-z])\1{2,}/g, '$1').replace(/[^a-z0-9' ]/g, '').replace(/'/g, '').split(/\s+/).filter(Boolean);
   const take = words.slice(0, 3);
   let name = take[0] + take.slice(1).map(w => w[0].toUpperCase() + w.slice(1)).join('');
   if (!/^[a-z]/.test(name)) name = 'v' + name;
@@ -153,15 +153,21 @@ function parse(src) {
     used.add(v);
     l.name = v;
 
-    // ngetik selesai tepat 0.1s sebelum vokal masuk; durasi ikut panjang teks & jeda baris
+    // ngetik mengikuti laju vokal: mulai 0.15s sebelum vokal, selesai sebelum baris berikut
     const gap = (out[i + 1] ? out[i + 1].at : l.at + 4) - l.at;
-    l.dur = Math.max(0.9, Math.min(3.0, l.text.length / 11, gap * 0.75));
-    l.start = l.at - l.dur - 0.1;
+    l.dur = Math.min(5, Math.max(0.9, gap * 0.85));
+    l.start = l.at - 0.15;
 
-    // bobot acak per karakter -> jarak antar huruf terasa manusiawi
+    // bobot acak per karakter; vokal panjang (aaa/ooo) diketik lebih lambat biar ikut nada
     const th = [];
     let sum = 0;
-    for (let k = 0; k < l.text.length; k++) { sum += 0.65 + noise(i * 131 + k) * 0.7; th.push(sum); }
+    const isVowel = (c) => 'aeiou'.includes(c);
+    for (let k = 0; k < l.text.length; k++) {
+      const c = l.text[k].toLowerCase();
+      const held = k > 1 && c === l.text[k - 1].toLowerCase() && c === l.text[k - 2].toLowerCase() && isVowel(c);
+      sum += (0.65 + noise(i * 131 + k) * 0.7) * (held ? 3.2 : 1);
+      th.push(sum);
+    }
     l.th = th.map(x => (x / sum) * 0.985);
     l.count = th.length;
   });
@@ -192,7 +198,7 @@ function render(t) {
   const i = activeIndex(t + offset);
   const line = LINES[i];
   // jeda panjang: sembunyikan setelah 3s biar layar bersih lagi
-  if (i < 0 || (t + offset > line.at + 3 && (i === LINES.length - 1 || t + offset < LINES[i + 1].start))) {
+  if (i < 0 || (t + offset > line.start + line.dur + 2.5 && (i === LINES.length - 1 || t + offset < LINES[i + 1].start))) {
     curEl.classList.add('hide');
     return;
   }

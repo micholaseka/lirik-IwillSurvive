@@ -1,333 +1,593 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="id">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>lirik — I Will Survive</title>
-<style>
-  :root {
-    --bg: #0b0b0d;
-    --kw: #c586c0;
-    --id: #9cdcfe;
-    --str: #ce9178;
-    --op: #d4d4d4;
-    --caret: #ff2d2d;
-  }
-  * { box-sizing: border-box; }
-  html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; }
-  body {
-    font: 500 clamp(14px, 3vh, 32px)/1.5 ui-monospace, "Cascadia Code", "JetBrains Mono", Menlo, Consolas, monospace;
-    color: var(--op);
-    -webkit-font-smoothing: antialiased;
-  }
-  #scene {
-    position: fixed; inset: 0;
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    padding: 6vh 6vw; cursor: pointer;
-  }
-  #cur { max-width: 88vw; min-height: 6em; display: flex; align-items: center; transition: opacity .25s ease; }
-  #cur { filter: drop-shadow(0 0 6px rgba(255,255,255,.45)) drop-shadow(0 0 26px rgba(255,255,255,.14)); }
-  #code { text-align: left; }
-  .caret { filter: drop-shadow(0 0 8px rgba(255,45,45,.85)); }
-  #cur.hide { opacity: 0; }
-  .kw { color: var(--kw); } .id { color: var(--id); } 
-  .str { color: var(--str); } .op { color: var(--op); } .rest { color: transparent; }
-  .caret { color: var(--caret); animation: blink 1.1s steps(1) infinite; }
-  .caret.off { display: none; }
-  @keyframes blink { 50% { opacity: 0; } }
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>lirik — I Will Survive</title>
+    <style>
+      :root {
+        --bg: #0b0b0d;
+        --kw: #c586c0;
+        --id: #9cdcfe;
+        --str: #ce9178;
+        --op: #d4d4d4;
+        --caret: #ff2d2d;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: var(--bg);
+        overflow: hidden;
+      }
+      body {
+        font:
+          500 clamp(15px, 3vh, 30px)/1.55 ui-monospace,
+          "Cascadia Code",
+          "JetBrains Mono",
+          Menlo,
+          Consolas,
+          monospace;
+        color: var(--op);
+        -webkit-font-smoothing: antialiased;
+      }
+      #scene {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        overflow: hidden;
+      }
+      #viewport {
+        width: min(88vw, 860px);
+        height: 70vh;
+        position: relative;
+        overflow: hidden;
+        mask-image: linear-gradient(
+          to bottom,
+          transparent 0%,
+          black 18%,
+          black 82%,
+          transparent 100%
+        );
+        -webkit-mask-image: linear-gradient(
+          to bottom,
+          transparent 0%,
+          black 18%,
+          black 82%,
+          transparent 100%
+        );
+        pointer-events: none;
+      }
+      #stage {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        transition: transform 0.45s cubic-bezier(0.2, 0.9, 0.3, 1);
+        will-change: transform;
+      }
+      .line {
+        width: 100%;
+        margin: 0.35em 0;
+        white-space: pre-wrap;
+        word-break: break-word;
+        opacity: 0;
+        transition:
+          opacity 0.32s ease,
+          filter 0.32s ease;
+      }
+      .line.active {
+        opacity: 1;
+        filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.45))
+          drop-shadow(0 0 24px rgba(255, 255, 255, 0.14));
+      }
+      .line.past {
+        opacity: 0.3;
+        filter: none;
+      }
+      .line.hidden {
+        opacity: 0;
+      }
+      .kw {
+        color: var(--kw);
+      }
+      .id {
+        color: var(--id);
+      }
+      .str {
+        color: var(--str);
+      }
+      .op {
+        color: var(--op);
+      }
+      .caret {
+        display: inline;
+        color: var(--caret);
+        margin-left: 1px;
+        filter: drop-shadow(0 0 8px rgba(255, 45, 45, 0.85));
+        animation: blink 1s steps(1) infinite;
+      }
+      .caret.off {
+        display: none;
+      }
+      @keyframes blink {
+        50% {
+          opacity: 0;
+        }
+      }
 
-  #panel {
-    position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
-    background: #111114; border-top: 1px solid #26262b;
-    padding: 14px 16px 18px; color: #ccc;
-    font: 13px/1.45 ui-monospace, Consolas, monospace;
-    max-height: 62vh; overflow: auto;
-  }
-  #panel[hidden] { display: none; }
-  #panel .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
-  #panel b { color: #fff; letter-spacing: .04em; font-size: 11px; }
-  #panel .hint, #msg, #off { color: #777; font-size: 11px; }
-  #msg.err { color: #ff6b6b; }
-  #off { color: #b5cea8; }
-  #ta {
-    width: 100%; height: 28vh; resize: vertical;
-    background: #08080a; color: #e6e6e6; border: 1px solid #26262b;
-    border-radius: 6px; padding: 10px; font: inherit;
-  }
-  #panel button {
-    background: #1c1c20; color: #eee; border: 1px solid #303036;
-    border-radius: 6px; padding: 7px 14px; font: inherit; cursor: pointer;
-  }
-  #panel button:hover { background: #26262b; }
-</style>
-</head>
-<body>
+      #panel {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 10;
+        background: #111114;
+        border-top: 1px solid #26262b;
+        padding: 14px 16px 18px;
+        color: #ccc;
+        font:
+          13px/1.45 ui-monospace,
+          Consolas,
+          monospace;
+        max-height: 62vh;
+        overflow: auto;
+      }
+      #panel[hidden] {
+        display: none;
+      }
+      #panel .row {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+        margin-bottom: 8px;
+      }
+      #panel b {
+        color: #fff;
+        letter-spacing: 0.04em;
+        font-size: 11px;
+      }
+      #panel .hint,
+      #msg,
+      #off {
+        color: #777;
+        font-size: 11px;
+      }
+      #msg.err {
+        color: #ff6b6b;
+      }
+      #off {
+        color: #b5cea8;
+      }
+      #ta {
+        width: 100%;
+        height: 28vh;
+        resize: vertical;
+        background: #08080a;
+        color: #e6e6e6;
+        border: 1px solid #26262b;
+        border-radius: 6px;
+        padding: 10px;
+        font: inherit;
+      }
+      #panel button {
+        background: #1c1c20;
+        color: #eee;
+        border: 1px solid #303036;
+        border-radius: 6px;
+        padding: 7px 14px;
+        font: inherit;
+        cursor: pointer;
+      }
+      #panel button:hover {
+        background: #26262b;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="scene">
+      <div id="viewport">
+        <div id="stage"></div>
+      </div>
+    </div>
 
-<div id="scene">
-  <div id="cur" class="hide">
-    <div id="code"><span class="kw" id="kw">const</span> <span class="id" id="vname">line</span>
-    <span class="op">=</span> <span class="str">"<span id="typed"></span><span class="caret" id="caret">▌</span>"</span><span class="op">;</span><span id="rest" class="rest"></span></div>
-  </div>
-</div>
+    <audio id="audio" src="audio.mp3" preload="auto"></audio>
 
-<audio id="audio" src="audio.mp3" preload="auto"></audio>
+    <div id="panel" hidden>
+      <div class="row">
+        <b>LIVE LINES: TEKS &amp; WAKTU DI SINI</b>
+        <span class="hint"
+          >format: detik|nama|teks (nama opsional) — E tutup, , / . geser
+          sinkron</span
+        >
+        <span id="off"></span>
+      </div>
+      <textarea
+        id="ta"
+        placeholder="Tempel teks di sini, satu baris untuk satu baris lirik"
+      ></textarea>
+      <div class="row" style="margin-top: 8px">
+        <button id="apply">Ganti teks</button>
+        <button id="play">Putar</button>
+        <span id="msg"></span>
+      </div>
+    </div>
 
-<div id="panel" hidden>
-  <div class="row">
-    <b>LIVE LINES: TEKS &amp; WAKTU DI SINI</b>
-    <span class="hint">format: detik|nama|teks, nama opsional — E tutup, , / . geser sinkron</span>
-    <span id="off"></span>
-  </div>
-  <textarea id="ta" placeholder="Tempel teks di sini, satu baris untuk satu baris lirik"></textarea>
-  <div class="row" style="margin-top:8px">
-    <button id="apply">Ganti teks</button>
-    <button id="play">Putar</button>
-    <span id="msg"></span>
-  </div>
-</div>
-
-<script>
-// Waktu = lirik Demi Lovato "I Will Survive"; klip 60s mulai di detik 30.34 lagu.
-const DEFAULT = `6.25|const walkOut|Go on now, go, walk out the dooooor
-10.37|let notWelcome|Just turn around now, 'cause you're not welcome anymoooore
+    <script>
+      // Lirik Demi Lovato "I Will Survive" klip 60s
+      const DEFAULT = `6.25|const walkOut|Go on now, go, walk out the door
+10.37|let notWelcome|Just turn around now, 'cause you're not welcome anymoore
 14.84|const hurtWithGoodbye|Weren't you the one who tried to hurt me with goodbyeee?
-18.04|const crumble|Did you think I'd crumble?
+18.01|const crumble|Did you think I'd crumble?
 20.04|let layDownAndDie|Do you think I'd lay down and diiiie?
 22.13|const notI|Oh no, not I, I will surviiiiive
-26.00|const knowHowToLove|Oh, as long as I know how to love, I know I'll stay aliiiiive
-30.00|let allMyLove|I've got all my life to live, and I've got all my love to giiiiive
-33.80|const surviveAgain|I will surviiiiive, I will surviiiiive, yeeeyy yeyyyyy
+26.00|const knowHowToLove|Oh, as long as I know how to love, I know I'll stay aliive
+30.00|let allMyLove|I've got all my life to live, and I've got all my love to giiive
+33.80|const surviveAgain|I will surviive, I will surviiiiive, yeyy yeyyyyy
 53.70|const notFallApart|It took all the strength I had not to fall apaaaart
 57.35|let mendMyHeart|Kept trying hard to mend the pieces of my broken heaaaart`;
 
-const scene = document.getElementById('scene');
-const curEl = document.getElementById('cur');
-const nameEl = document.getElementById('vname');
-const kwEl = document.getElementById('kw');
-const typedEl = document.getElementById('typed');
-const restEl = document.getElementById('rest');
-const caretEl = document.getElementById('caret');
-const audio = document.getElementById('audio');
-const panel = document.getElementById('panel');
-const ta = document.getElementById('ta');
-const msg = document.getElementById('msg');
-const offEl = document.getElementById('off');
+      const scene = document.getElementById("scene");
+      const stage = document.getElementById("stage");
+      const viewport = document.getElementById("viewport");
+      const audio = document.getElementById("audio");
+      const panel = document.getElementById("panel");
+      const ta = document.getElementById("ta");
+      const msg = document.getElementById("msg");
+      const offEl = document.getElementById("off");
 
-let LINES = [];
-let built = '';
-let offset = 0.5;       // detik: geser semua lirik ( , / . )
-let playStart = 0;
-let frozen = 0;
-let usingAudio = true;
-let playing = false;
-let raf = 0;
+      let LINES = [];
+      let built = "";
+      let offset = 0.5; // detik: geser semua lirik ( , / . )
+      let playStart = 0;
+      let frozen = 0;
+      let usingAudio = true;
+      let playing = false;
+      let raf = 0;
 
-// noise tetap per karakter => ritme ketikan tidak rata, tapi selalu sama tiap putar
-function noise(n) { const x = Math.sin(n * 12.9898) * 43758.5453; return x - Math.floor(x); }
+      function noise(n) {
+        const x = Math.sin(n * 12.9898) * 43758.5453;
+        return x - Math.floor(x);
+      }
 
-// "Go on now, go..." -> "goOnNow"
-function varName(text) {
-  const words = text.toLowerCase().replace(/([a-z])\1{2,}/g, '$1').replace(/[^a-z0-9' ]/g, '').replace(/'/g, '').split(/\s+/).filter(Boolean);
-  const take = words.slice(0, 3);
-  let name = take[0] + take.slice(1).map(w => w[0].toUpperCase() + w.slice(1)).join('');
-  if (!/^[a-z]/.test(name)) name = 'v' + name;
-  return name;
-}
+      function varName(text) {
+        const words = text
+          .toLowerCase()
+          .replace(/([a-z])\1{2,}/g, "$1")
+          .replace(/[^a-z0-9' ]/g, "")
+          .replace(/'/g, "")
+          .split(/\s+/)
+          .filter(Boolean);
+        const take = words.slice(0, 3);
+        let name =
+          take[0] +
+          take
+            .slice(1)
+            .map((w) => w[0].toUpperCase() + w.slice(1))
+            .join("");
+        if (!/^[a-z]/.test(name)) name = "v" + name;
+        return name;
+      }
 
-function parse(src) {
-  const out = [];
-  for (const [n, raw] of src.split('\n').entries()) {
-    const line = raw.trim();
-    if (!line) continue;
-    const parts = line.split('|');
-    if (parts.length < 2) throw new Error(`baris ${n + 1}: harus "detik|teks"`);
-    const at = parseFloat(parts[0].trim().replace(',', '.'));
-    if (!isFinite(at) || at < 0) throw new Error(`baris ${n + 1}: waktu tidak valid`);
-    if (out.length && at < out[out.length - 1].at) throw new Error(`baris ${n + 1}: waktu harus urut naik`);
-    let kw = 'const', name = null, text;
-    if (parts.length >= 3) {
-      const m = parts[1].trim().match(/^(?:(const|let|var)\s+)?([A-Za-z_$][\w$]*)$/);
-      if (!m) throw new Error(`baris ${n + 1}: nama variabel tidak valid`);
-      kw = m[1] || 'const';
-      name = m[2];
-      text = parts.slice(2).join('|').trim();
-    } else {
-      text = parts.slice(1).join('|').trim();
-    }
-    if (!text) throw new Error(`baris ${n + 1}: teks kosong`);
-    out.push({ at, text, kw, name });
-  }
-  if (!out.length) throw new Error('tidak ada lirik');
+      function parse(src) {
+        const out = [];
+        for (const [n, raw] of src.split("\n").entries()) {
+          const line = raw.trim();
+          if (!line) continue;
+          const parts = line.split("|");
+          if (parts.length < 2)
+            throw new Error(`baris ${n + 1}: harus "detik|teks"`);
+          const at = parseFloat(parts[0].trim().replace(",", "."));
+          if (!isFinite(at) || at < 0)
+            throw new Error(`baris ${n + 1}: waktu tidak valid`);
+          if (out.length && at < out[out.length - 1].at)
+            throw new Error(`baris ${n + 1}: waktu harus urut naik`);
 
-  const used = new Set();
-  out.forEach((l, i) => {
-    let v = l.name || varName(l.text);
-    while (used.has(v)) v += i;
-    used.add(v);
-    l.name = v;
+          let kw = "const",
+            name = null,
+            text;
+          if (parts.length >= 3) {
+            const m = parts[1]
+              .trim()
+              .match(/^(?:(const|let|var)\s+)?([A-Za-z_$][\w$]*)$/);
+            if (!m)
+              throw new Error(`baris ${n + 1}: nama variabel tidak valid`);
+            kw = m[1] || "const";
+            name = m[2];
+            text = parts.slice(2).join("|").trim();
+          } else {
+            text = parts.slice(1).join("|").trim();
+          }
+          if (!text) throw new Error(`baris ${n + 1}: teks kosong`);
+          out.push({ at, text, kw, name });
+        }
+        if (!out.length) throw new Error("tidak ada lirik");
 
-    // ngetik mengikuti laju vokal, tapi mulai ~1s lebih awal biar tidak terasa telat
-    const gap = (out[i + 1] ? out[i + 1].at : l.at + 4) - l.at;
-    l.dur = Math.min(5, Math.max(0.9, gap * 0.8));
-    l.start = l.at - Math.min(1.2, l.dur * 0.45);
+        const used = new Set();
+        out.forEach((l, i) => {
+          let v = l.name || varName(l.text);
+          while (used.has(v)) v += i;
+          used.add(v);
+          l.name = v;
 
-    // ritme per kata: kata diketik cepat (burst), vokal panjang menyebar sepanjang nada
-    const words = l.text.split(' ');
-    const total = words.reduce((a, w) => a + w.length, 0) || 1;
-    const times = [];
-    let cum = 0;
-    words.forEach((w, wi) => {
-      const wStart = l.start + cum * l.dur;
-      cum += w.length / total;
-      const wEnd = l.start + cum * l.dur;
-      const held = /[aeiou]{3,}/i.test(w);
-      const burst = held ? wEnd - wStart : Math.min(0.26, (wEnd - wStart) * 0.7);
-      for (let k = 0; k < w.length; k++) times.push(wStart + (k + noise(wi * 17 + k) * 0.35) / w.length * burst);
-      if (wi < words.length - 1) times.push(wEnd + 0.01);
-    });
-    l.times = times;
-    l.count = l.text.length;
-  });
-  return out;
-}
+          const gap = (out[i + 1] ? out[i + 1].at : l.at + 4) - l.at;
+          l.dur = Math.min(5, Math.max(0.9, gap * 0.8));
+          l.start = l.at - Math.min(1.2, l.dur * 0.45);
 
-function setLines(src) {
-  LINES = parse(src);
-  console.assert(LINES.every((l, i) => !i || l.at >= LINES[i - 1].at), 'lirik gagal validasi');
-  built = src;
-  render(now());
-}
+          // Hitung waktu per karakter strictly monotonic
+          const words = l.text.split(" ");
+          const totalChars = words.reduce((a, w) => a + w.length, 0) || 1;
+          const times = [];
+          let cum = 0;
+          let tPrev = l.start;
 
-function activeIndex(t) {
-  let i = -1;
-  for (let k = 0; k < LINES.length; k++) if (t >= LINES[k].start) i = k;
-  return i;
-}
+          words.forEach((w, wi) => {
+            const wStart = l.start + (cum / totalChars) * l.dur;
+            cum += w.length;
+            const wEnd = l.start + (cum / totalChars) * l.dur;
+            const held = /[aeiou]{3,}/i.test(w);
+            const span = held
+              ? wEnd - wStart
+              : Math.min(0.28, (wEnd - wStart) * 0.75);
 
-function revealCount(line, t) {
-  let n = 0;
-  while (n < line.count && line.times[n] <= t) n++;
-  return n;
-}
+            for (let k = 0; k < w.length; k++) {
+              let charT = wStart + (k / Math.max(1, w.length)) * span;
+              charT = Math.max(tPrev + 0.014, charT);
+              times.push(charT);
+              tPrev = charT;
+            }
+            if (wi < words.length - 1) {
+              tPrev += 0.02;
+              times.push(tPrev);
+            }
+          });
 
-function render(t) {
-  const i = activeIndex(t + offset);
-  const line = LINES[i];
-  // jeda panjang: sembunyikan setelah 3s biar layar bersih lagi
-  if (i < 0 || (t + offset > line.start + line.dur + 2.5 && (i === LINES.length - 1 || t + offset < LINES[i + 1].start))) {
-    curEl.classList.add('hide');
-    return;
-  }
-  const n = revealCount(line, t + offset);
-  kwEl.textContent = line.kw;
-  nameEl.textContent = line.name;
-  typedEl.textContent = line.text.slice(0, n);
-  restEl.textContent = line.text.slice(n);
-  caretEl.classList.toggle('off', n >= line.text.length);
-  curEl.classList.remove('hide');
-}
+          console.assert(
+            times.length === l.text.length,
+            "panjang times tidak cocok",
+          );
+          l.times = times;
+          l.count = l.text.length;
+        });
+        return out;
+      }
 
-function now() {
-  if (usingAudio) return audio.currentTime;
-  return playing ? frozen + (performance.now() - playStart) / 1000 : frozen;
-}
+      function buildDOM() {
+        stage.innerHTML = "";
+        LINES.forEach((l, i) => {
+          const el = document.createElement("div");
+          el.className = "line hidden";
+          el.id = `line-${i}`;
+          el.innerHTML = `<span class="kw">${l.kw}</span> <span class="id">${l.name}</span> <span class="op">=</span> <span class="str">"<span class="typed"></span><span class="caret">▌</span>"</span><span class="op">;</span>`;
+          l.el = el;
+          l.typedEl = el.querySelector(".typed");
+          l.caretEl = el.querySelector(".caret");
+          stage.appendChild(el);
+        });
+      }
 
-function tick() {
-  render(now());
-  if (playing) raf = requestAnimationFrame(tick);
-}
+      function setLines(src) {
+        LINES = parse(src);
+        built = src;
+        buildDOM();
+        render(now());
+      }
 
-function start() {
-  usingAudio = !audio.error;
-  if (usingAudio) { audio.currentTime = 0; audio.play().catch(fallback); }
-  else { frozen = 0; playStart = performance.now(); }
-  playing = true;
-  cancelAnimationFrame(raf);
-  raf = requestAnimationFrame(tick);
-  setPlayLabel();
-}
+      function activeIndex(t) {
+        let i = -1;
+        for (let k = 0; k < LINES.length; k++) if (t >= LINES[k].start) i = k;
+        return i;
+      }
 
-function fallback() {
-  usingAudio = false;
-  playStart = performance.now();
-  playing = true;
-  cancelAnimationFrame(raf);
-  raf = requestAnimationFrame(tick);
-  setPlayLabel();
-}
+      function revealCount(line, t) {
+        let n = 0;
+        while (n < line.count && line.times[n] <= t) n++;
+        return n;
+      }
 
-function pause() {
-  if (usingAudio) { frozen = audio.currentTime; audio.pause(); }
-  else frozen = now();
-  playing = false;
-  cancelAnimationFrame(raf);
-  setPlayLabel();
-}
+      let lastActive = -999;
 
-function toggle() { playing ? pause() : start(); }
+      function render(t) {
+        const curT = t + offset;
+        const active = activeIndex(curT);
 
-function reset() {
-  if (usingAudio) { audio.pause(); try { audio.currentTime = 0; } catch {} }
-  frozen = 0;
-  playing = false;
-  cancelAnimationFrame(raf);
-  render(0);
-  setPlayLabel();
-}
+        LINES.forEach((line, i) => {
+          if (!line.el) return;
 
-function setPlayLabel() {
-  document.getElementById('play').textContent = playing ? 'Jeda' : 'Putar';
-}
+          if (i === active) {
+            // Baris yang sedang aktif / diketik
+            const isDeadTime =
+              curT > line.start + line.dur + 2.5 &&
+              (i === LINES.length - 1 || curT < LINES[i + 1].start);
+            if (isDeadTime) {
+              line.el.className = "line hidden";
+            } else {
+              const n = revealCount(line, curT);
+              line.typedEl.textContent = line.text.slice(0, n);
+              line.caretEl.classList.toggle("off", n >= line.text.length);
+              line.el.className = "line active";
+            }
+          } else if (i < active) {
+            // Baris yang sudah lewat (tetap di atas, dimmed halus)
+            line.typedEl.textContent = line.text;
+            line.caretEl.classList.add("off");
+            const dist = active - i;
+            if (dist <= 3) {
+              line.el.className = "line past";
+              line.el.style.opacity =
+                dist === 1 ? "0.34" : dist === 2 ? "0.18" : "0.08";
+            } else {
+              line.el.className = "line hidden";
+            }
+          } else {
+            // Baris yang belum mulai
+            line.typedEl.textContent = "";
+            line.caretEl.classList.remove("off");
+            line.el.className = "line hidden";
+          }
+        });
 
-function showOffset() {
-  offEl.textContent = `sinkron ${offset >= 0 ? '+' : ''}${offset.toFixed(2)}s`;
-}
+        // Scroll kamera stage agar baris aktif tepat berada di tengah
+        if (active >= 0 && LINES[active] && LINES[active].el) {
+          if (active !== lastActive) {
+            lastActive = active;
+            const targetEl = LINES[active].el;
+            const targetOffset = targetEl.offsetTop + targetEl.offsetHeight / 2;
+            const vhCenter = viewport.clientHeight / 2;
+            stage.style.transform = `translateY(${vhCenter - targetOffset}px)`;
+          }
+        } else {
+          stage.style.transform = "translateY(0)";
+        }
+      }
 
-function nudge(d) {
-  offset = Math.round((offset + d) * 100) / 100;
-  showOffset();
-  render(now());
-}
+      function now() {
+        if (usingAudio) return audio.currentTime;
+        return playing
+          ? frozen + (performance.now() - playStart) / 1000
+          : frozen;
+      }
 
-function togglePanel(open = panel.hidden) {
-  panel.hidden = !open;
-  if (open) { ta.value = built; ta.focus(); }
-}
+      function tick() {
+        render(now());
+        if (playing) raf = requestAnimationFrame(tick);
+      }
 
-document.getElementById('apply').onclick = () => {
-  try {
-    setLines(ta.value);
-    msg.className = ''; msg.textContent = 'lirik diganti';
-  } catch (e) {
-    msg.className = 'err'; msg.textContent = e.message;
-  }
-};
-document.getElementById('play').onclick = toggle;
+      function start() {
+        usingAudio = !audio.error;
+        if (usingAudio) {
+          audio.currentTime = 0;
+          audio.play().catch(fallback);
+        } else {
+          frozen = 0;
+          playStart = performance.now();
+        }
+        playing = true;
+        cancelAnimationFrame(raf);
+        raf = requestAnimationFrame(tick);
+        setPlayLabel();
+      }
 
-addEventListener('keydown', (e) => {
-  if (e.target.tagName === 'TEXTAREA') {
-    if (e.key === 'Escape') togglePanel(false);
-    return;
-  }
-  if (e.code === 'Space') { e.preventDefault(); toggle(); }
-  else if (e.key === 'r') reset();
-  else if (e.key === 'e') togglePanel();
-  else if (e.key === ',') nudge(-0.05);
-  else if (e.key === '.') nudge(0.05);
-  else if (e.key === 'f') {
-    document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
-  }
-});
+      function fallback() {
+        usingAudio = false;
+        playStart = performance.now();
+        playing = true;
+        cancelAnimationFrame(raf);
+        raf = requestAnimationFrame(tick);
+        setPlayLabel();
+      }
 
-scene.onclick = () => { if (panel.hidden) toggle(); };
-audio.addEventListener('error', () => { usingAudio = false; });
-audio.addEventListener('ended', () => { playing = false; cancelAnimationFrame(raf); render(audio.duration || 0); setPlayLabel(); });
+      function pause() {
+        if (usingAudio) {
+          frozen = audio.currentTime;
+          audio.pause();
+        } else frozen = now();
+        playing = false;
+        cancelAnimationFrame(raf);
+        setPlayLabel();
+      }
 
-setLines(DEFAULT);
-render(0);
-showOffset();
-setPlayLabel();
-</script>
-</body>
+      function toggle() {
+        playing ? pause() : start();
+      }
+
+      function reset() {
+        if (usingAudio) {
+          audio.pause();
+          try {
+            audio.currentTime = 0;
+          } catch {}
+        }
+        frozen = 0;
+        playing = false;
+        lastActive = -999;
+        cancelAnimationFrame(raf);
+        render(0);
+        setPlayLabel();
+      }
+
+      function setPlayLabel() {
+        document.getElementById("play").textContent = playing
+          ? "Jeda"
+          : "Putar";
+      }
+
+      function showOffset() {
+        offEl.textContent = `sinkron ${offset >= 0 ? "+" : ""}${offset.toFixed(2)}s`;
+      }
+
+      function nudge(d) {
+        offset = Math.round((offset + d) * 100) / 100;
+        showOffset();
+        render(now());
+      }
+
+      function togglePanel(open = panel.hidden) {
+        panel.hidden = !open;
+        if (open) {
+          ta.value = built;
+          ta.focus();
+        }
+      }
+
+      document.getElementById("apply").onclick = () => {
+        try {
+          setLines(ta.value);
+          msg.className = "";
+          msg.textContent = "lirik diganti";
+        } catch (e) {
+          msg.className = "err";
+          msg.textContent = e.message;
+        }
+      };
+      document.getElementById("play").onclick = toggle;
+
+      addEventListener("keydown", (e) => {
+        if (e.target.tagName === "TEXTAREA") {
+          if (e.key === "Escape") togglePanel(false);
+          return;
+        }
+        if (e.code === "Space") {
+          e.preventDefault();
+          toggle();
+        } else if (e.key === "r") reset();
+        else if (e.key === "e") togglePanel();
+        else if (e.key === ",") nudge(-0.05);
+        else if (e.key === ".") nudge(0.05);
+        else if (e.key === "f") {
+          document.fullscreenElement
+            ? document.exitFullscreen()
+            : document.documentElement.requestFullscreen();
+        }
+      });
+
+      scene.onclick = () => {
+        if (panel.hidden) toggle();
+      };
+      audio.addEventListener("error", () => {
+        usingAudio = false;
+      });
+      audio.addEventListener("ended", () => {
+        playing = false;
+        cancelAnimationFrame(raf);
+        render(audio.duration || 0);
+        setPlayLabel();
+      });
+
+      setLines(DEFAULT);
+      render(0);
+      showOffset();
+      setPlayLabel();
+    </script>
+  </body>
 </html>

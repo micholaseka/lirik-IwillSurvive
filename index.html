@@ -27,7 +27,9 @@
     padding: 6vh 6vw; cursor: pointer;
   }
   #cur { max-width: 88vw; min-height: 6em; display: flex; align-items: center; transition: opacity .25s ease; }
+  #cur { filter: drop-shadow(0 0 6px rgba(255,255,255,.45)) drop-shadow(0 0 26px rgba(255,255,255,.14)); }
   #code { text-align: left; }
+  .caret { filter: drop-shadow(0 0 8px rgba(255,45,45,.85)); }
   #cur.hide { opacity: 0; }
   .kw { color: var(--kw); } .id { color: var(--id); } 
   .str { color: var(--str); } .op { color: var(--op); } .rest { color: transparent; }

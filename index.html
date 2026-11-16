@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>lirik — I Will Survive</title>
+<style>
+  :root {
+    --bg: #0b0b0d;
+    --kw: #c586c0;
+    --id: #9cdcfe;
+    --str: #ce9178;
+    --op: #d4d4d4;
+    --caret: #ff2d2d;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; }
+  body {
+    font: 500 clamp(14px, 3vh, 32px)/1.5 ui-monospace, "Cascadia Code", "JetBrains Mono", Menlo, Consolas, monospace;
+    color: var(--op);
+    -webkit-font-smoothing: antialiased;
+  }
+  #scene {
+    position: fixed; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 6vh 6vw; cursor: pointer;
+  }
+  #cur { max-width: 88vw; min-height: 6em; display: flex; align-items: center; transition: opacity .25s ease; }
+  #code { text-align: left; }
+  #cur.hide { opacity: 0; }
+  .kw { color: var(--kw); } .id { color: var(--id); } 
+  .str { color: var(--str); } .op { color: var(--op); } .rest { color: transparent; }
+  .caret { color: var(--caret); animation: blink 1.1s steps(1) infinite; }
+  .caret.off { display: none; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  #panel {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
+    background: #111114; border-top: 1px solid #26262b;
+    padding: 14px 16px 18px; color: #ccc;
+    font: 13px/1.45 ui-monospace, Consolas, monospace;
+    max-height: 62vh; overflow: auto;
+  }
+  #panel[hidden] { display: none; }
+  #panel .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+  #panel b { color: #fff; letter-spacing: .04em; font-size: 11px; }
+  #panel .hint, #msg, #off { color: #777; font-size: 11px; }
+  #msg.err { color: #ff6b6b; }
+  #off { color: #b5cea8; }
+  #ta {
+    width: 100%; height: 28vh; resize: vertical;
+    background: #08080a; color: #e6e6e6; border: 1px solid #26262b;
+    border-radius: 6px; padding: 10px; font: inherit;
+  }
+  #panel button {
+    background: #1c1c20; color: #eee; border: 1px solid #303036;
+    border-radius: 6px; padding: 7px 14px; font: inherit; cursor: pointer;
+  }
+  #panel button:hover { background: #26262b; }
+</style>
+</head>
+<body>
+
+<div id="scene">
+  <div id="cur" class="hide">
+    <div id="code"><span class="kw">const</span> <span class="id" id="vname">line</span>
+    <span class="op">=</span> <span class="str">"<span id="typed"></span><span class="caret" id="caret">▌</span>"</span><span class="op">;</span><span id="rest" class="rest"></span></div>
+  </div>
+</div>
+
+<audio id="audio" src="audio.mp3" preload="auto"></audio>
+
+<div id="panel" hidden>
+  <div class="row">
+    <b>LIVE LINES: TEKS &amp; WAKTU DI SINI</b>
+    <span class="hint">format: detik|teks — E tutup, , / . geser sinkron</span>
+    <span id="off"></span>
+  </div>
+  <textarea id="ta" placeholder="Tempel teks di sini, satu baris untuk satu baris lirik"></textarea>
+  <div class="row" style="margin-top:8px">
+    <button id="apply">Ganti teks</button>
+    <button id="play">Putar</button>
+    <span id="msg"></span>
+  </div>
+</div>
+
+<script>
+// Waktu = lirik Demi Lovato "I Will Survive"; klip 60s mulai di detik 30.34 lagu.
+const DEFAULT = `6.25|Go on now, go, walk out the door
+10.37|Just turn around now, 'cause you're not welcome anymore
+14.84|Weren't you the one who tried to hurt me with goodbye?
+18.04|Did you think I'd crumble?
+20.04|Do you think I'd lay down and die?
+22.13|Oh no, not I, I will survive
+26.00|Oh, as long as I know how to love, I know I'll stay alive
+30.00|I've got all my life to live, and I've got all my love to give
+33.80|I will survive, I will survive, hey, hey
+53.70|It took all the strength I had not to fall apart
+57.35|Kept trying hard to mend the pieces of my broken heart`;
+
+const scene = document.getElementById('scene');
+const curEl = document.getElementById('cur');
+const nameEl = document.getElementById('vname');
+const typedEl = document.getElementById('typed');
+const restEl = document.getElementById('rest');
+const caretEl = document.getElementById('caret');
+const audio = document.getElementById('audio');
+const panel = document.getElementById('panel');
+const ta = document.getElementById('ta');
+const msg = document.getElementById('msg');
+const offEl = document.getElementById('off');
+
+let LINES = [];
+let built = '';
+let offset = 0.15;      // detik: geser semua lirik ( , / . )
+let playStart = 0;
+let frozen = 0;
+let usingAudio = true;
+let playing = false;
+let raf = 0;
+
+// noise tetap per karakter => ritme ketikan tidak rata, tapi selalu sama tiap putar
+function noise(n) { const x = Math.sin(n * 12.9898) * 43758.5453; return x - Math.floor(x); }
+
+// "Go on now, go..." -> "goOnNow"
+function varName(text) {
+  const words = text.toLowerCase().replace(/[^a-z0-9' ]/g, '').replace(/'/g, '').split(/\s+/).filter(Boolean);
+  const take = words.slice(0, 3);
+  let name = take[0] + take.slice(1).map(w => w[0].toUpperCase() + w.slice(1)).join('');
+  if (!/^[a-z]/.test(name)) name = 'v' + name;
+  return name;
+}
+
+function parse(src) {
+  const out = [];
+  for (const [n, raw] of src.split('\n').entries()) {
+    const line = raw.trim();
+    if (!line) continue;
+    const m = line.match(/^(\d+(?:[.,]\d+)?)\s*\|\s*(.+)$/);
+    if (!m) throw new Error(`baris ${n + 1}: harus "detik|teks"`);
+    const at = parseFloat(m[1].replace(',', '.'));
+    if (!isFinite(at) || at < 0) throw new Error(`baris ${n + 1}: waktu tidak valid`);
+    if (out.length && at < out[out.length - 1].at) throw new Error(`baris ${n + 1}: waktu harus urut naik`);
+    out.push({ at, text: m[2].trim() });
+  }
+  if (!out.length) throw new Error('tidak ada lirik');
+
+  const used = new Set();
+  out.forEach((l, i) => {
+    let v = varName(l.text);
+    while (used.has(v)) v += i;
+    used.add(v);
+    l.name = v;
+
+    // ngetik selesai tepat 0.1s sebelum vokal masuk; durasi ikut panjang teks & jeda baris
+    const gap = (out[i + 1] ? out[i + 1].at : l.at + 4) - l.at;
+    l.dur = Math.max(0.9, Math.min(3.0, l.text.length / 11, gap * 0.75));
+    l.start = l.at - l.dur - 0.1;
+
+    // bobot acak per karakter -> jarak antar huruf terasa manusiawi
+    const th = [];
+    let sum = 0;
+    for (let k = 0; k < l.text.length; k++) { sum += 0.65 + noise(i * 131 + k) * 0.7; th.push(sum); }
+    l.th = th.map(x => (x / sum) * 0.985);
+    l.count = th.length;
+  });
+  return out;
+}
+
+function setLines(src) {
+  LINES = parse(src);
+  console.assert(LINES.every((l, i) => !i || l.at >= LINES[i - 1].at), 'lirik gagal validasi');
+  built = src;
+  render(now());
+}
+
+function activeIndex(t) {
+  let i = -1;
+  for (let k = 0; k < LINES.length; k++) if (t >= LINES[k].start) i = k;
+  return i;
+}
+
+function revealCount(line, t) {
+  const p = Math.max(0, Math.min(1, (t - line.start) / line.dur));
+  let n = 0;
+  while (n < line.count && line.th[n] <= p) n++;
+  return n;
+}
+
+function render(t) {
+  const i = activeIndex(t + offset);
+  const line = LINES[i];
+  // jeda panjang: sembunyikan setelah 3s biar layar bersih lagi
+  if (i < 0 || (t + offset > line.at + 3 && (i === LINES.length - 1 || t + offset < LINES[i + 1].start))) {
+    curEl.classList.add('hide');
+    return;
+  }
+  const n = revealCount(line, t + offset);
+  nameEl.textContent = line.name;
+  typedEl.textContent = line.text.slice(0, n);
+  restEl.textContent = line.text.slice(n);
+  caretEl.classList.toggle('off', n >= line.text.length);
+  curEl.classList.remove('hide');
+}
+
+function now() {
+  if (usingAudio) return audio.currentTime;
+  return playing ? frozen + (performance.now() - playStart) / 1000 : frozen;
+}
+
+function tick() {
+  render(now());
+  if (playing) raf = requestAnimationFrame(tick);
+}
+
+function start() {
+  usingAudio = !audio.error;
+  if (usingAudio) { audio.currentTime = 0; audio.play().catch(fallback); }
+  else { frozen = 0; playStart = performance.now(); }
+  playing = true;
+  cancelAnimationFrame(raf);
+  raf = requestAnimationFrame(tick);
+  setPlayLabel();
+}
+
+function fallback() {
+  usingAudio = false;
+  playStart = performance.now();
+  playing = true;
+  cancelAnimationFrame(raf);
+  raf = requestAnimationFrame(tick);
+  setPlayLabel();
+}
+
+function pause() {
+  if (usingAudio) { frozen = audio.currentTime; audio.pause(); }
+  else frozen = now();
+  playing = false;
+  cancelAnimationFrame(raf);
+  setPlayLabel();
+}
+
+function toggle() { playing ? pause() : start(); }
+
+function reset() {
+  if (usingAudio) { audio.pause(); try { audio.currentTime = 0; } catch {} }
+  frozen = 0;
+  playing = false;
+  cancelAnimationFrame(raf);
+  render(0);
+  setPlayLabel();
+}
+
+function setPlayLabel() {
+  document.getElementById('play').textContent = playing ? 'Jeda' : 'Putar';
+}
+
+function showOffset() {
+  offEl.textContent = `sinkron ${offset >= 0 ? '+' : ''}${offset.toFixed(2)}s`;
+}
+
+function nudge(d) {
+  offset = Math.round((offset + d) * 100) / 100;
+  showOffset();
+  render(now());
+}
+
+function togglePanel(open = panel.hidden) {
+  panel.hidden = !open;
+  if (open) { ta.value = built; ta.focus(); }
+}
+
+document.getElementById('apply').onclick = () => {
+  try {
+    setLines(ta.value);
+    msg.className = ''; msg.textContent = 'lirik diganti';
+  } catch (e) {
+    msg.className = 'err'; msg.textContent = e.message;
+  }
+};
+document.getElementById('play').onclick = toggle;
+
+addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'TEXTAREA') {
+    if (e.key === 'Escape') togglePanel(false);
+    return;
+  }
+  if (e.code === 'Space') { e.preventDefault(); toggle(); }
+  else if (e.key === 'r') reset();
+  else if (e.key === 'e') togglePanel();
+  else if (e.key === ',') nudge(-0.05);
+  else if (e.key === '.') nudge(0.05);
+  else if (e.key === 'f') {
+    document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
+  }
+});
+
+scene.onclick = () => { if (panel.hidden) toggle(); };
+audio.addEventListener('error', () => { usingAudio = false; });
+audio.addEventListener('ended', () => { playing = false; cancelAnimationFrame(raf); render(audio.duration || 0); setPlayLabel(); });
+
+setLines(DEFAULT);
+render(0);
+showOffset();
+setPlayLabel();
+</script>
+</body>
+</html>

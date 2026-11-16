@@ -64,7 +64,7 @@
 
 <div id="scene">
   <div id="cur" class="hide">
-    <div id="code"><span class="kw">const</span> <span class="id" id="vname">line</span>
+    <div id="code"><span class="kw" id="kw">const</span> <span class="id" id="vname">line</span>
     <span class="op">=</span> <span class="str">"<span id="typed"></span><span class="caret" id="caret">▌</span>"</span><span class="op">;</span><span id="rest" class="rest"></span></div>
   </div>
 </div>
@@ -74,7 +74,7 @@
 <div id="panel" hidden>
   <div class="row">
     <b>LIVE LINES: TEKS &amp; WAKTU DI SINI</b>
-    <span class="hint">format: detik|teks — E tutup, , / . geser sinkron</span>
+    <span class="hint">format: detik|nama|teks, nama opsional — E tutup, , / . geser sinkron</span>
     <span id="off"></span>
   </div>
   <textarea id="ta" placeholder="Tempel teks di sini, satu baris untuk satu baris lirik"></textarea>
@@ -87,21 +87,22 @@
 
 <script>
 // Waktu = lirik Demi Lovato "I Will Survive"; klip 60s mulai di detik 30.34 lagu.
-const DEFAULT = `6.25|Go on now, go, walk out the dooooor
-10.37|Just turn around now, 'cause you're not welcome anymoooore
-14.84|Weren't you the one who tried to hurt me with goodbyeee?
-18.04|Did you think I'd crumble?
-20.04|Do you think I'd lay down and diiiie?
-22.13|Oh no, not I, I will surviiiiive
-26.00|Oh, as long as I know how to love, I know I'll stay aliiiiive
-30.00|I've got all my life to live, and I've got all my love to giiiiive
-33.80|I will surviiiiive, I will surviiiiive, yeeeyy yeyyyyy
-53.70|It took all the strength I had not to fall apaaaart
-57.35|Kept trying hard to mend the pieces of my broken heaaaart`;
+const DEFAULT = `6.25|const walkOut|Go on now, go, walk out the dooooor
+10.37|let notWelcome|Just turn around now, 'cause you're not welcome anymoooore
+14.84|const hurtWithGoodbye|Weren't you the one who tried to hurt me with goodbyeee?
+18.04|const crumble|Did you think I'd crumble?
+20.04|let layDownAndDie|Do you think I'd lay down and diiiie?
+22.13|const notI|Oh no, not I, I will surviiiiive
+26.00|const knowHowToLove|Oh, as long as I know how to love, I know I'll stay aliiiiive
+30.00|let allMyLove|I've got all my life to live, and I've got all my love to giiiiive
+33.80|const surviveAgain|I will surviiiiive, I will surviiiiive, yeeeyy yeyyyyy
+53.70|const notFallApart|It took all the strength I had not to fall apaaaart
+57.35|let mendMyHeart|Kept trying hard to mend the pieces of my broken heaaaart`;
 
 const scene = document.getElementById('scene');
 const curEl = document.getElementById('cur');
 const nameEl = document.getElementById('vname');
+const kwEl = document.getElementById('kw');
 const typedEl = document.getElementById('typed');
 const restEl = document.getElementById('rest');
 const caretEl = document.getElementById('caret');
@@ -137,18 +138,29 @@ function parse(src) {
   for (const [n, raw] of src.split('\n').entries()) {
     const line = raw.trim();
     if (!line) continue;
-    const m = line.match(/^(\d+(?:[.,]\d+)?)\s*\|\s*(.+)$/);
-    if (!m) throw new Error(`baris ${n + 1}: harus "detik|teks"`);
-    const at = parseFloat(m[1].replace(',', '.'));
+    const parts = line.split('|');
+    if (parts.length < 2) throw new Error(`baris ${n + 1}: harus "detik|teks"`);
+    const at = parseFloat(parts[0].trim().replace(',', '.'));
     if (!isFinite(at) || at < 0) throw new Error(`baris ${n + 1}: waktu tidak valid`);
     if (out.length && at < out[out.length - 1].at) throw new Error(`baris ${n + 1}: waktu harus urut naik`);
-    out.push({ at, text: m[2].trim() });
+    let kw = 'const', name = null, text;
+    if (parts.length >= 3) {
+      const m = parts[1].trim().match(/^(?:(const|let|var)\s+)?([A-Za-z_$][\w$]*)$/);
+      if (!m) throw new Error(`baris ${n + 1}: nama variabel tidak valid`);
+      kw = m[1] || 'const';
+      name = m[2];
+      text = parts.slice(2).join('|').trim();
+    } else {
+      text = parts.slice(1).join('|').trim();
+    }
+    if (!text) throw new Error(`baris ${n + 1}: teks kosong`);
+    out.push({ at, text, kw, name });
   }
   if (!out.length) throw new Error('tidak ada lirik');
 
   const used = new Set();
   out.forEach((l, i) => {
-    let v = varName(l.text);
+    let v = l.name || varName(l.text);
     while (used.has(v)) v += i;
     used.add(v);
     l.name = v;
@@ -203,6 +215,7 @@ function render(t) {
     return;
   }
   const n = revealCount(line, t + offset);
+  kwEl.textContent = line.kw;
   nameEl.textContent = line.name;
   typedEl.textContent = line.text.slice(0, n);
   restEl.textContent = line.text.slice(n);
